@@ -130,39 +130,44 @@ class Firewalld:
         contents = open(filepath).read()
         return self._parse_firewalld_conf(contents)
 
-    def explain(self, as_table=False):
+    def explain_table(self):
+
+        try:
+            from tabulate import tabulate
+        except Exception as e:
+            print(f"Cannot build table because \"tabulate\" is not available: {e}")
+            print(f"Hint: `python -m pip install tabulate --user`")
+            return False
 
         contents = self.list_all_zones()
         self._parse_all_zones(contents)
 
+        prev_zone_name = ""
+        i = 1
 
-        if as_table:
-            try:
-                from tabulate import tabulate
-                table_data = [["#", "Trigger", "Zone", "Ports", "Source ports",
-                                "Services", "Protocols", "Target"]]
+        table_data = [["#", "Trigger", "Zone", "Ports", "Source ports",
+                        "Services", "Protocols", "Target"]]
 
-                i = 1
-                prev_zone_name = ""
+        for source, zone in self._sources.items():
+            table_data.append([i, source, *zone_to_tabulate_row(zone)])
+            i += 1
 
-                for source, zone in self._sources.items():
-                    table_data.append([i, source, *zone_to_tabulate_row(zone)])
-                    i += 1
+        for interface, zone in self._interfaces.items():
+            table_data.append([i, interface, *zone_to_tabulate_row(zone)])
+            i += 1
 
-                for interface, zone in self._interfaces.items():
-                    table_data.append([i, source, *zone_to_tabulate_row(zone)])
-                    i += 1
+        default_zone_name = self.firewalld_conf().get("DefaultZone")
+        default_zone = self._zones.get(default_zone_name)
+        table_data.append([i, "Other traffic", *zone_to_tabulate_row(default_zone)])
 
-                default_zone_name = self.firewalld_conf().get("DefaultZone")
-                default_zone = self._zones.get(default_zone_name)
-                table_data.append([i, "Other traffic", *zone_to_tabulate_row(default_zone)])
+        print(tabulate(table_data, headers="firstrow", tablefmt="fancy_grid"))
 
-                print(tabulate(table_data, headers="firstrow", tablefmt="fancy_grid"))
-                return
+        return True
 
-            except Exception as e:
-                print(f"Cannot build table because `tabulate` is not available: {e}")
-                print(f"Falling back to text output.")
+
+    def explain_text(self):
+        contents = self.list_all_zones()
+        self._parse_all_zones(contents)
 
         for source, zone in self._sources.items():
             print(f"{source} -> {zone}")
@@ -174,8 +179,10 @@ class Firewalld:
         
         default_zone_name = firewalld_conf.get("DefaultZone")
         if default_zone_name:
-            default_zone = zones.get(default_zone_name)
+            default_zone = self._zones.get(default_zone_name)
+
         print(f"All_other_traffic -> {default_zone}")
+
 
 
 class SOSFirewalld(Firewalld):
@@ -231,4 +238,7 @@ if args.sos:
 else:
     firewalld = Firewalld()
 
-firewalld.explain(as_table=args.table)
+if args.table:
+    firewalld.explain_table()
+else:
+    firewalld.explain_text()
