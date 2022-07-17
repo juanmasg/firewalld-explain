@@ -221,24 +221,28 @@ def zone_to_tabulate_row(zone):
              " ".join(zone.protocols),
              zone.target]
 
-parser = ArgumentParser()
-parser.add_argument("--sos", "-S", help="Path to sosreport with firewalld dump")
-parser.add_argument("--table", "-T", help="Table format", action="store_true")
 
-args = parser.parse_args()
+if __name__ == '__main__':
+    parser = ArgumentParser()
+    parser.add_argument("--sos", "-S", help="Path to sosreport with firewalld dump")
+    parser.add_argument("--table", "-T", help="Table format", action="store_true")
+    
+    args = parser.parse_args()
+    
+    firewalld = None
+    
+    if args.sos:
+        if not SOSFirewalld.check_sos_path(args.sos):
+            printf("sosreport path doesn't seem to contain firewalld data {args.sos}")
+            sys.exit(1)
+    
+        firewalld = SOSFirewalld(args.sos)
+    else:
+        firewalld = Firewalld()
+    
+    if args.table:
+        firewalld.explain_table()
+    else:
+        firewalld.explain_text()
 
-firewalld = None
 
-if args.sos:
-    if not SOSFirewalld.check_sos_path(args.sos):
-        printf("sosreport path doesn't seem to contain firewalld data {args.sos}")
-        sys.exit(1)
-
-    firewalld = SOSFirewalld(args.sos)
-else:
-    firewalld = Firewalld()
-
-if args.table:
-    firewalld.explain_table()
-else:
-    firewalld.explain_text()
