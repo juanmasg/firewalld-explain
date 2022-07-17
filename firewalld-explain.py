@@ -12,6 +12,7 @@ class Zone:
     protocols = []
     services = []
     source_ports = []
+    rich_rules = []
     target = None
 
 
@@ -21,6 +22,7 @@ class Zone:
         self.protocols = []
         self.services = []
         self.source_ports = []
+        self.rich_rules = []
         self.target = None
 
         for key, value in kwargs.items():
@@ -33,12 +35,14 @@ class Zone:
         return getaddr(self, key)
 
     def __repr__(self):
+        newline='\n'
         return " ".join([ x for x in (
                 f"{self.name} (target:{self.target})",
-                f"  Services: {','.join(self.services)}" if self.services else "",
-                f"  Ports: {','.join(self.ports)}" if self.ports else "",
-                f"  Source ports: {','.join(self.source_ports)}" if self.source_ports else "",
-                f"  Protocols: {','.join(self.protocols)}" if self.protocols else "",
+                f"{newline}  Services: {','.join(self.services)}" if self.services else "",
+                f"{newline}  Ports: {','.join(self.ports)}" if self.ports else "",
+                f"{newline}  Source ports: {','.join(self.source_ports)}" if self.source_ports else "",
+                f"{newline}  Protocols: {','.join(self.protocols)}" if self.protocols else "",
+                f"{newline}  Rich rules:{newline} {newline.join(self.rich_rules)}" if self.rich_rules else "",
         ) if x])
 
 class Firewalld:
@@ -58,6 +62,7 @@ class Firewalld:
         current_zone_active = False
 
         for line in contents.split("\n"):
+            #print("LINE", line, "LAST KEY", last_key)
             if not line:
                 # ^$: end of zone
                 last_key = ""
@@ -77,7 +82,7 @@ class Firewalld:
                 self._zones[current_zone_name] = Zone(name=current_zone_name)
 
             elif last_key == "rich rules":
-                # ignore rich rules for now
+                self._zones[current_zone_name].rich_rules.append(line)
                 continue
 
             elif not current_zone_active:
@@ -107,6 +112,15 @@ class Firewalld:
 
                 elif key == "target":
                     self._zones[current_zone_name][key] = values[0]
+
+
+        # Sort all sources by netmask. This is NOT the order in which firewalld processes them but
+        # it's easier to read
+        sorted_sources = {}
+        for key in sorted(self._sources, key=lambda x: int(x.split("/")[1]) if "/" in x else 32, reverse=True ):
+            sorted_sources[key] = self._sources[key]
+
+        self._sources = sorted_sources
 
 
 
@@ -150,7 +164,7 @@ class Firewalld:
         i = 1
 
         table_data = [["#", "Trigger", "Zone", "Ports", "Source ports",
-                        "Services", "Protocols", "Target"]]
+                        "Services", "Protocols", "Rich rules", "Target"]]
 
         for source, zone in self._sources.items():
             table_data.append([i, source, *zone_to_tabulate_row(zone)])
@@ -164,7 +178,8 @@ class Firewalld:
         default_zone = self._zones.get(default_zone_name)
         table_data.append([i, "Other traffic", *zone_to_tabulate_row(default_zone)])
 
-        print(tabulate(table_data, headers="firstrow", tablefmt="fancy_grid", maxcolwidths=80))
+        print(tabulate(table_data, headers="firstrow",
+            tablefmt="fancy_grid", maxcolwidths=80))
 
         return True
 
@@ -177,10 +192,10 @@ class Firewalld:
         self._parse_all_zones(contents)
 
         for source, zone in self._sources.items():
-            print(f"{source} -> {zone}")
+            print(f"\n{source} -> {zone}")
         
         for interface, zone in self._interfaces.items():
-            print(f"{interface} -> {zone}")
+            print(f"\n{interface} -> {zone}")
 
         firewalld_conf = self.firewalld_conf()
         
@@ -188,7 +203,7 @@ class Firewalld:
         if default_zone_name:
             default_zone = self._zones.get(default_zone_name)
 
-        print(f"All_other_traffic -> {default_zone}")
+        print(f"\nAll_other_traffic -> {default_zone}")
 
     def explain_nwdiag(self):
         pass
@@ -242,6 +257,7 @@ def zone_to_tabulate_row(zone):
              " ".join(zone.source_ports),
              " ".join(zone.services),
              " ".join(zone.protocols),
+             " ".join(zone.rich_rules),
              zone.target]
 
 
@@ -256,7 +272,7 @@ if __name__ == '__main__':
     
     if args.sos:
         if not SOSFirewalld.check_sos_path(args.sos):
-            printf("sosreport path doesn't seem to contain firewalld data {args.sos}")
+            print(f"sosreport path doesn't seem to contain firewalld data {args.sos}")
             sys.exit(1)
     
         firewalld = SOSFirewalld(args.sos)
