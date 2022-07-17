@@ -1,5 +1,5 @@
 # firewalld-explain
-Runs `firewall-cmd --list-all-zones` and prints a summary of all relevant information.
+Runs `firewall-cmd --list-all-zones` and prints a summary of all relevant information.  
 Alternatively, it can scan `firewall-cmd_--list-all-zones` from a sosreport
 
 # Example:
