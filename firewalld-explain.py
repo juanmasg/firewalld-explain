@@ -130,9 +130,39 @@ class Firewalld:
         contents = open(filepath).read()
         return self._parse_firewalld_conf(contents)
 
-    def explain(self):
+    def explain(self, as_table=False):
+
         contents = self.list_all_zones()
         self._parse_all_zones(contents)
+
+
+        if as_table:
+            try:
+                from tabulate import tabulate
+                table_data = [["#", "Trigger", "Zone", "Ports", "Source ports",
+                                "Services", "Protocols", "Target"]]
+
+                i = 1
+                prev_zone_name = ""
+
+                for source, zone in self._sources.items():
+                    table_data.append([i, source, *zone_to_tabulate_row(zone)])
+                    i += 1
+
+                for interface, zone in self._interfaces.items():
+                    table_data.append([i, source, *zone_to_tabulate_row(zone)])
+                    i += 1
+
+                default_zone_name = self.firewalld_conf().get("DefaultZone")
+                default_zone = self._zones.get(default_zone_name)
+                table_data.append([i, "Other traffic", *zone_to_tabulate_row(default_zone)])
+
+                print(tabulate(table_data, headers="firstrow", tablefmt="fancy_grid"))
+                return
+
+            except Exception as e:
+                print(f"Cannot build table because `tabulate` is not available: {e}")
+                print(f"Falling back to text output.")
 
         for source, zone in self._sources.items():
             print(f"{source} -> {zone}")
@@ -152,7 +182,7 @@ class SOSFirewalld(Firewalld):
     _sospath = None
 
     def __init__(self, sospath):
-        super().__init__(self)
+        Firewalld.__init__(self)
         self._sospath = sospath
 
     @staticmethod
@@ -176,12 +206,17 @@ class SOSFirewalld(Firewalld):
         return self._parse_firewalld_conf(contents)
 
 
-sources = {}
-interfaces = {}
-zones = {}
+def zone_to_tabulate_row(zone):
+    return [ zone.name,
+             " ".join(zone.ports),
+             " ".join(zone.source_ports),
+             " ".join(zone.services),
+             " ".join(zone.protocols),
+             zone.target]
 
 parser = ArgumentParser()
 parser.add_argument("--sos", "-S", help="Path to sosreport with firewalld dump")
+parser.add_argument("--table", "-T", help="Table format", action="store_true")
 
 args = parser.parse_args()
 
@@ -196,4 +231,4 @@ if args.sos:
 else:
     firewalld = Firewalld()
 
-firewalld.explain()
+firewalld.explain(as_table=args.table)
