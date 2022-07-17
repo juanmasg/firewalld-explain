@@ -116,6 +116,7 @@ class Firewalld:
         stdout, stderr = proc.communicate()
         if stderr and b"FirewallD is not running" in stderr:
             print(stderr)
+            return None
 
         return stdout.decode("utf8")
 
@@ -140,6 +141,9 @@ class Firewalld:
             return False
 
         contents = self.list_all_zones()
+        if not contents:
+            return
+
         self._parse_all_zones(contents)
 
         prev_zone_name = ""
@@ -160,13 +164,16 @@ class Firewalld:
         default_zone = self._zones.get(default_zone_name)
         table_data.append([i, "Other traffic", *zone_to_tabulate_row(default_zone)])
 
-        print(tabulate(table_data, headers="firstrow", tablefmt="fancy_grid"))
+        print(tabulate(table_data, headers="firstrow", tablefmt="fancy_grid", maxcolwidths=80))
 
         return True
 
 
     def explain_text(self):
         contents = self.list_all_zones()
+        if not contents:
+            return 
+
         self._parse_all_zones(contents)
 
         for source, zone in self._sources.items():
@@ -182,6 +189,17 @@ class Firewalld:
             default_zone = self._zones.get(default_zone_name)
 
         print(f"All_other_traffic -> {default_zone}")
+
+    def explain_nwdiag(self):
+        pass
+        #diag_data = """
+        #    nwdiag{
+        #        inet [shape = cloud];
+        #        inet -- 
+        #    }
+        #"""
+
+
 
 
 
@@ -205,7 +223,12 @@ class SOSFirewalld(Firewalld):
 
     def list_all_zones(self):
         filepath = f"{self._sospath}/sos_commands/firewalld/firewall-cmd_--list-all-zones"
-        return open(filepath).read()
+        data = open(filepath).read()
+        if data and "FirewallD is not running" in data:
+            print("FirewallD was not running")
+            return None
+
+        return data
 
     def firewalld_conf(self):
         filepath = f"{self._sospath}/etc/firewalld/firewalld.conf"
