@@ -151,6 +151,7 @@ class Firewalld:
         except Exception as e:
             print(f"Cannot build dot file because \"graphviz\" is not available: {e}")
             print(f"Hint: `python -m pip install graphviz --user`")
+            print(f"You might also need to install the system package: `yum install -y graphviz`")
             return False
 
         dot = graphviz.Digraph(comment="", format="png")
