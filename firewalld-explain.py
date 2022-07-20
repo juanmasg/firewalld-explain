@@ -152,7 +152,7 @@ class Firewalld:
             print(f"Cannot build dot file because \"graphviz\" is not available: {e}")
             print(f"Hint: `python -m pip install graphviz --user`")
 
-        dot = graphviz.Digraph(comment="")
+        dot = graphviz.Digraph(comment="", format="png")
         dot.graph_attr['rankdir'] = 'LR'
 
         all_nodes = set([ *self._sources.keys(), *self._interfaces.keys(), *self._zones.keys() ])
