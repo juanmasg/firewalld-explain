@@ -151,6 +151,7 @@ class Firewalld:
         except Exception as e:
             print(f"Cannot build dot file because \"graphviz\" is not available: {e}")
             print(f"Hint: `python -m pip install graphviz --user`")
+            return False
 
         dot = graphviz.Digraph(comment="", format="png")
         dot.graph_attr['rankdir'] = 'LR'
