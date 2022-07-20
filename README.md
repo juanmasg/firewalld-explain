@@ -39,9 +39,12 @@ Alternatively, it can scan `firewall-cmd_--list-all-zones` from a sosreport
       ├─────┼────────────────┼───────────┼──────────┼────────────────┼───────────────────────────┼─────────────┼──────────────┼──────────┤
       │   5 │ Other traffic  │ public    │          │                │ cockpit dhcpv6-client ssh │             │              │ default  │
       ╘═════╧════════════════╧═══════════╧══════════╧════════════════╧═══════════════════════════╧═════════════╧══════════════╧══════════╛
-
-      
       ```
+      
+  * Dot format:  
+    `$ sudo ./firewalld-explain.py -D`
+  
+    ![](<.img/firewalld-explain.gv.png>)
 
   * Scan from a sosreport:
       ```
