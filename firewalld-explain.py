@@ -3,6 +3,7 @@
 import sys
 import os
 import re
+import textwrap
 from argparse import ArgumentParser
 from subprocess import Popen, PIPE, check_output
 
@@ -35,15 +36,8 @@ class Zone:
         return getaddr(self, key)
 
     def __repr__(self):
-        newline='\n'
-        return " ".join([ x for x in (
-                f"{self.name} (target:{self.target})",
-                f"{newline}  Services: {','.join(self.services)}" if self.services else "",
-                f"{newline}  Ports: {','.join(self.ports)}" if self.ports else "",
-                f"{newline}  Source ports: {','.join(self.source_ports)}" if self.source_ports else "",
-                f"{newline}  Protocols: {','.join(self.protocols)}" if self.protocols else "",
-                f"{newline}  Rich rules:{newline} {newline.join(self.rich_rules)}" if self.rich_rules else "",
-        ) if x])
+        return " ".join((f"{self.name} ({self.target}) {len(self.services)} services, {len(self.ports)} ports,",
+                f"{len(self.source_ports)} source ports, {len(self.protocols)} protocols, {len(self.rich_rules)} rich rules"))
 
 class Firewalld:
     _firewallcmd_bin = "firewall-cmd"
@@ -145,6 +139,44 @@ class Firewalld:
         contents = open(filepath).read()
         return self._parse_firewalld_conf(contents)
 
+    def explain_dot(self):
+        contents = self.list_all_zones()
+        if not contents:
+            return
+
+        self._parse_all_zones(contents)
+
+        try:
+            import graphviz
+        except Exception as e:
+            print(f"Cannot build dot file because \"graphviz\" is not available: {e}")
+            print(f"Hint: `python -m pip install graphviz --user`")
+
+        dot = graphviz.Digraph(comment="")
+        dot.graph_attr['rankdir'] = 'LR'
+
+        all_nodes = set([ *self._sources.keys(), *self._interfaces.keys(), *self._zones.keys() ])
+
+        for zone_name, zone in self._zones.items():
+            label = zone_to_text(zone).replace("\n", "\l")  + "\l"
+            dot.node(zone_name, f"zone:{zone_name}", shape="box")
+            dot.node(f"{zone_name}_ruleset", label , shape="component")
+            dot.edge(zone.name, f"{zone_name}_ruleset")
+            dot.node(zone.target, zone.target)
+            dot.edge(f"{zone_name}_ruleset", zone.target)
+
+        for source, zone in self._sources.items():
+            source = source.replace(":", " ") if "ipset:" in source else source
+            dot.node(source, source, shape="doubleoctagon" if "/" in source or "ipset" in source else "box")
+            dot.edge(source, zone.name)
+
+        for interface, zone in self._interfaces.items():
+            dot.node(interface, interface, shape="egg")
+            dot.edge(interface, zone.name)
+
+        print(dot.source)
+        dot.render("test.gv", view=True)
+
     def explain_table(self):
 
         try:
@@ -192,10 +224,19 @@ class Firewalld:
         self._parse_all_zones(contents)
 
         for source, zone in self._sources.items():
-            print(f"\n{source} -> {zone}")
+            print(f"* {source} -> {zone.name} (target:{zone.target})")
+            details = zone_to_text(zone)
+            if details:
+                print(details)
+
+            print("")
         
         for interface, zone in self._interfaces.items():
-            print(f"\n{interface} -> {zone}")
+            print(f"* {interface} -> {zone.name} (target:{zone.target})")
+            details = zone_to_text(zone)
+            if details:
+                print(details)
+            print("")
 
         firewalld_conf = self.firewalld_conf()
         
@@ -203,7 +244,7 @@ class Firewalld:
         if default_zone_name:
             default_zone = self._zones.get(default_zone_name)
 
-        print(f"\nAll_other_traffic -> {default_zone}")
+        print(f"** All_other_traffic -> {default_zone.name} ({default_zone.target})\n{zone_to_text(default_zone)}")
 
     def explain_nwdiag(self):
         pass
@@ -257,14 +298,27 @@ def zone_to_tabulate_row(zone):
              " ".join(zone.source_ports),
              " ".join(zone.services),
              " ".join(zone.protocols),
-             " ".join(zone.rich_rules),
+             "\n".join(zone.rich_rules),
              zone.target]
+
+
+
+def zone_to_text(zone):
+    newline='\n'
+    return newline.join([ x for x in (
+            f"  Services: {', '.join(zone.services)}" if zone.services else "",
+            f"  Ports: {textwrap.fill(', '.join(zone.ports), width=140, subsequent_indent=10*' ')}" if zone.ports else "",
+            f"  Source ports: {', '.join(zone.source_ports)}" if zone.source_ports else "",
+            f"  Protocols: {', '.join(zone.protocols)}" if zone.protocols else "",
+            f"  Rich rules:{newline} {newline.join(zone.rich_rules)}" if zone.rich_rules else "",
+    ) if x])
 
 
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument("--sos", "-S", help="Path to sosreport with firewalld dump")
     parser.add_argument("--table", "-T", help="Table format", action="store_true")
+    parser.add_argument("--dot", "-D", help="Dot format", action="store_true")
     
     args = parser.parse_args()
     
@@ -281,6 +335,8 @@ if __name__ == '__main__':
     
     if args.table:
         firewalld.explain_table()
+    elif args.dot:
+        firewalld.explain_dot()
     else:
         firewalld.explain_text()
 
