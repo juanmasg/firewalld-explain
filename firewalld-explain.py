@@ -176,7 +176,6 @@ class Firewalld:
             dot.node(interface, interface, shape="egg")
             dot.edge(interface, zone.name)
 
-        print(dot.source)
         dot.render("/tmp/firewalld-explain.gv", view=True)
 
     def explain_table(self):
