@@ -5,7 +5,7 @@ import os
 import re
 import textwrap
 from argparse import ArgumentParser
-from subprocess import Popen, PIPE, check_output
+from subprocess import Popen, PIPE, check_output, run
 
 class Zone:
     name = ""
@@ -139,7 +139,10 @@ class Firewalld:
         contents = open(filepath).read()
         return self._parse_firewalld_conf(contents)
 
-    def explain_dot(self):
+    def explain_dot(self, view=False):
+
+        filename = "/tmp/firewalld-explain.gv"
+
         contents = self.list_all_zones()
         if not contents:
             return
@@ -154,7 +157,7 @@ class Firewalld:
             print(f"You might also need to install the system package: `yum install -y graphviz`")
             return False
 
-        dot = graphviz.Digraph(comment="", format="png")
+        dot = graphviz.Digraph(comment="", format="svg")
         dot.graph_attr['rankdir'] = 'LR'
 
         all_nodes = set([ *self._sources.keys(), *self._interfaces.keys(), *self._zones.keys() ])
@@ -162,7 +165,7 @@ class Firewalld:
         for zone_name, zone in self._zones.items():
             label = zone_to_text(zone).replace("\n", "\l")  + "\l"
             dot.node(zone_name, f"zone:{zone_name}", shape="box")
-            dot.node(f"{zone_name}_ruleset", label , shape="component")
+            dot.node(f"{zone_name}_ruleset", label) # , shape="component")
             dot.edge(zone.name, f"{zone_name}_ruleset")
             dot.node(zone.target, zone.target)
             dot.edge(f"{zone_name}_ruleset", zone.target)
@@ -176,7 +179,9 @@ class Firewalld:
             dot.node(interface, interface, shape="egg")
             dot.edge(interface, zone.name)
 
-        dot.render("/tmp/firewalld-explain.gv", view=True)
+        dot.render(filename, view=view)
+
+        return filename
 
     def explain_table(self):
 
@@ -317,9 +322,11 @@ def zone_to_text(zone):
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument("--sos", "-S", help="Path to sosreport with firewalld dump")
-    parser.add_argument("--table", "-T", help="Table format", action="store_true")
-    parser.add_argument("--dot", "-D", help="Dot format", action="store_true")
+    parser.add_argument("--sos", "-S", help="Path to sosreport with firewalld dump.")
+    parser.add_argument("--table", "-T", help="Table format.", action="store_true")
+    parser.add_argument("--dot", "-D", help="Dot format.", action="store_true")
+    parser.add_argument("--view", "-V", help="Open the generated graph automatically.", action="store_true")
+    parser.add_argument("--exec", "-E", help="Process the generated dot file through this command. Use `%f` as filename.")
     
     args = parser.parse_args()
     
@@ -337,7 +344,10 @@ if __name__ == '__main__':
     if args.table:
         firewalld.explain_table()
     elif args.dot:
-        firewalld.explain_dot()
+        filename = firewalld.explain_dot(view=args.view)
+        if args.exec:
+            cmd = args.exec.replace('%f', filename)
+            run(cmd.split(' '))
     else:
         firewalld.explain_text()
 
