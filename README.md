@@ -51,11 +51,23 @@ Alternatively, it can scan `firewall-cmd_--list-all-zones` from a sosreport
     ![](<.img/firewalld-explain.gv.png>)
 
   * Open automatically the generated graph via an arbitrary command:
+    ```
+    $ sudo ./firewalld-explain.py -D -E "graph-easy --input=%f"
+    #================#     +----------------+     +---------------------------------------+     +---------+
+    H 192.168.2.0/24 H --> |  zone:trusted  | --> |                                       | --> | ACCEPT  |
+    #================#     +----------------+     +---------------------------------------+     +---------+
+    +----------------+     +----------------+     +---------------------------------------+     +---------+
+    |     enp1s0     | --> |  zone:public   | --> | Services: cockpit, dhcpv6-client, ssh | --> | default |
+    +----------------+     +----------------+     +---------------------------------------+     +---------+
+                                                                                                  ^
+                                                                                                  |
+                                                                                                  |
+    +----------------+     +----------------+     +---------------------------------------+       |
+    |     enp4s0     | --> | zone:test-zone | --> |            Ports: 1234/tcp            | ------+
+    +----------------+     +----------------+     +---------------------------------------+
 
-    `$ sudo ./firewalld-explain.py -D -E "graph-easy --input=%f" `
+    ```
   
-    ![](<.img/firewalld-explain.gv.png>)
-
   * Scan from a sosreport:
       ```
       $ ./firewalld-explain.py -S /path/to/sosreport
