@@ -43,6 +43,16 @@ Alternatively, it can scan `firewall-cmd_--list-all-zones` from a sosreport
       
   * Dot format:  
     `$ sudo ./firewalld-explain.py -D`
+
+  * Open automatically the generated graph:
+
+    `$ sudo ./firewalld-explain.py -D -V`
+  
+    ![](<.img/firewalld-explain.gv.png>)
+
+  * Open automatically the generated graph via an arbitrary command:
+
+    `$ sudo ./firewalld-explain.py -D -E "graph-easy --input=%f" `
   
     ![](<.img/firewalld-explain.gv.png>)
 
