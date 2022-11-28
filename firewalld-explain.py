@@ -50,7 +50,7 @@ class Firewalld:
         self._sources = {}
         self._interfaces = {}
 
-    def _parse_all_zones(self, contents):
+    def _parse_all_zones(self, contents, source_only=None, interface_only=None):
 
         last_key = ""
         current_zone_active = False
@@ -94,9 +94,22 @@ class Firewalld:
 
                 if key == "sources":
                     for source in values:
+                        if source_only is not None and source != source_only:
+                            continue
+
+                        if interface_only is not None:
+                            continue
+
+                        print("ADD SOURCE REPORT", source)
                         self._sources[source] = self._zones[current_zone_name]
                 elif key == "interfaces":
                     for interface in values:
+                        if interface_only is not None and interface != interface_only:
+                            continue
+
+                        if source_only is not None:
+                            continue
+
                         self._interfaces[interface] = self._zones[current_zone_name]
 
                 elif key in ("source-ports", "ports", "services", "protocols"):
@@ -139,7 +152,7 @@ class Firewalld:
         contents = open(filepath).read()
         return self._parse_firewalld_conf(contents)
 
-    def explain_dot(self, view=False):
+    def explain_dot(self, view=False, source_only=None, interface_only=None):
 
         filename = "/tmp/firewalld-explain.gv"
 
@@ -147,7 +160,7 @@ class Firewalld:
         if not contents:
             return
 
-        self._parse_all_zones(contents)
+        self._parse_all_zones(contents, source_only=source_only, interface_only=interface_only)
 
         try:
             import graphviz
@@ -183,7 +196,7 @@ class Firewalld:
 
         return filename
 
-    def explain_table(self):
+    def explain_table(self, source_only=None, interface_only=None):
 
         try:
             from tabulate import tabulate
@@ -196,7 +209,7 @@ class Firewalld:
         if not contents:
             return
 
-        self._parse_all_zones(contents)
+        self._parse_all_zones(contents, source_only=source_only, interface_only=interface_only)
 
         prev_zone_name = ""
         i = 1
@@ -222,12 +235,12 @@ class Firewalld:
         return True
 
 
-    def explain_text(self):
+    def explain_text(self, source_only=None, interface_only=None):
         contents = self.list_all_zones()
         if not contents:
             return 
 
-        self._parse_all_zones(contents)
+        self._parse_all_zones(contents, source_only=source_only, interface_only=interface_only)
 
         for source, zone in self._sources.items():
             print(f"* {source} -> {zone.name} (target:{zone.target})")
@@ -248,7 +261,13 @@ class Firewalld:
         
         default_zone_name = firewalld_conf.get("DefaultZone")
         if default_zone_name:
-            default_zone = self._zones.get(default_zone_name)
+            default_zone = self._zones.get(default_zone_name) 
+
+
+        if not default_zone:
+            print(f"WARNING: Default zone name is set to '{default_zone_name}', but there's no zone with such name")
+            return
+
 
         print(f"** All_other_traffic -> {default_zone.name} ({default_zone.target})\n{zone_to_text(default_zone)}")
 
@@ -323,10 +342,12 @@ def zone_to_text(zone):
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument("--sos", "-S", help="Path to sosreport with firewalld dump.")
+    parser.add_argument("--source", "-s", help="Explain what traffic from this source would do.")
+    parser.add_argument("--interface", "-i", help="Explain what traffic from this interface would do.")
     parser.add_argument("--table", "-T", help="Table format.", action="store_true")
     parser.add_argument("--dot", "-D", help="Dot format.", action="store_true")
     parser.add_argument("--view", "-V", help="Open the generated graph automatically.", action="store_true")
-    parser.add_argument("--exec", "-E", help="Process the generated dot file through this command. Use `%f` as filename.")
+    parser.add_argument("--exec", "-E", help="Process the generated dot file through this command. Use `%%f` as filename.")
     
     args = parser.parse_args()
     
@@ -342,13 +363,13 @@ if __name__ == '__main__':
         firewalld = Firewalld()
     
     if args.table:
-        firewalld.explain_table()
+        firewalld.explain_table(source_only=args.source, interface_only=args.interface)
     elif args.dot:
-        filename = firewalld.explain_dot(view=args.view)
+        filename = firewalld.explain_dot(view=args.view, source_only=args.source, interface_only=args.interface)
         if args.exec:
             cmd = args.exec.replace('%f', filename)
             run(cmd.split(' '))
     else:
-        firewalld.explain_text()
+        firewalld.explain_text(source_only=args.source, interface_only=args.interface)
 
 
