@@ -301,7 +301,6 @@ class SOSFirewalld(Firewalld):
 
         return True
 
-
     def list_all_zones(self):
         filepath = f"{self._sospath}/sos_commands/firewalld/firewall-cmd_--list-all-zones"
         data = open(filepath).read()
@@ -315,6 +314,23 @@ class SOSFirewalld(Firewalld):
         filepath = f"{self._sospath}/etc/firewalld/firewalld.conf"
         contents = open(filepath).read()
         return self._parse_firewalld_conf(contents)
+
+
+class DataFirewalld(Firewalld):
+    _zones_data = None
+    _conf_data = None
+
+    def __init__(self, zones_data, conf_data):
+        Firewalld.__init__(self)
+        self._zones_data = zones_data
+        self._conf_data = conf_data
+
+    def list_all_zones(self):
+        return self._zones_data
+
+    def firewalld_conf(self):
+        return self._parse_firewalld_conf(self._conf_data)
+        
 
 
 def zone_to_tabulate_row(zone):
